@@ -1,4 +1,4 @@
-update=Fri 11 Aug 2017 17:14:17 CEST
+update=Fri 11 Aug 2017 21:32:12 CEST
 version=1
 last_client=kicad
 [pcbnew]
@@ -27,7 +27,7 @@ NetIExt=net
 version=1
 [eeschema]
 version=1
-LibDir=
+LibDir=libraries
 [eeschema/libraries]
 LibName1=74xgxx
 LibName2=74xx
@@ -121,3 +121,8 @@ LibName89=Xicor
 LibName90=xilinx
 LibName91=zetex
 LibName92=Zilog
+LibName93=libraries/cd74hc4067
+LibName94=libraries/irlr_7843
+LibName95=libraries/buck_converter
+LibName96=libraries/rfid_reader
+LibName97=libraries/programmer_breakout
