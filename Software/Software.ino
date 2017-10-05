@@ -18,7 +18,6 @@ MFRC522 mfrc(CS, PIN_UNUSED);
 
 #define DEBUG
 
-//TODO: The "update cards" part should be it's own function!
 void setup(){
   #ifdef DEBUG
     Serial.begin(19200);

@@ -6,8 +6,15 @@
 //Dirty fix
 #include "config.hpp"
 
-void jsonPost(StaticJsonBuffer<maxCheckSize>* jsonBuffer, JsonObject* response);
+typedef struct{
+  String uid;
+  String content;
+} card;
+
+void jsonPost(StaticJsonBuffer<maxCheckSize>* jsonBuffer, JsonVariant* response);
+void downloadCards(String* uids, unsigned int uidLength);
+void downloadCards(StaticJsonBuffer<maxCheckSize>* jsonBuffer, String* uids, unsigned int uidLength);
 void updateCardsAndTime(unsigned long* timeReset);
-void writeCardValues(JsonVariant variant);
+void writeCardValues(card* cards, unsigned int length);
 
 #endif

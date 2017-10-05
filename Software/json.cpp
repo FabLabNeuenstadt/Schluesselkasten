@@ -6,12 +6,58 @@ HTTPClient http;
 
 #include "json.hpp"
 
-void jsonPost(StaticJsonBuffer<maxCheckSize>* jsonBuffer, JsonObject* response){
+//Push a json request to the server and handle the response!
+void jsonPost(StaticJsonBuffer<maxCheckSize>* jsonBuffer, JsonVariant response){
+  
+  http.begin(host, port, uri + apiKey, fingerprint);
+  String jsonString;
+  response.printTo(jsonString);
+  int httpCode = http.POST(jsonString);
+  //Clear
+  
+  jsonBuffer->clear();
+  jsonString = "";
+
+  //Make this recurring part it's own function
+  
+  //Receive response
+  if(httpCode < 0){
+    #ifdef DEBUG
+      Serial.println(F("Something went wrong while sending the POST request"));
+    #endif
+    ESP.restart();
+  }else{
+    if(httpCode == HTTP_CODE_OK) {
+      jsonString = http.getString();
+      #ifdef DEBUG
+        Serial.println(jsonString);
+      #endif
+      response = jsonBuffer->parseObject(jsonString);
+      jsonString = "";
+
+      if(!response.success()){
+        #ifdef DEBUG
+          Serial.println(F("Something went wrong while parsing the JSON-Response!"));
+        #endif
+        ESP.restart();
+      }
+    }else{
+      #ifdef DEBUG
+        Serial.println(F("Something went wrong while sending the POST request"));
+        Serial.print(F("Status Code: "));
+        Serial.println(httpCode);
+      #endif  
+      ESP.restart();
+    }
+  }
+  http.end();
 }
 
+//Check time and time and update them accordingly
 void updateCardsAndTime(unsigned long* resetTime){
+  
   StaticJsonBuffer<maxCheckSize> jsonBuffer;
-
+  
   //Create the sync-object
   //Maybe-TODO: make the sending flexible(eg. because of more cards). Not really needed
   JsonVariant object = jsonBuffer.createObject();
@@ -30,52 +76,12 @@ void updateCardsAndTime(unsigned long* resetTime){
   }
 
   http.addHeader(F("Content-Type:"), F("application/json"), false, true); 
-  http.begin(host, port, uri + apiKey, fingerprint);
-  String jsonString;
-  object.printTo(jsonString);
-  int httpCode = http.POST(jsonString);
-  
+
+  jsonPost(&jsonBuffer, object);
+
   #ifdef DEBUG
     Serial.println(F("Sent the list of currently stored cards to the server"));
   #endif
-  
-  //Clear
-  jsonBuffer.clear();
-  jsonString = "";
-
-  //Make this recurring part it's own function
-  
-  //Receive response
-  if(httpCode < 0){
-    #ifdef DEBUG
-      Serial.println(F("Something went wrong while sending the POST request"));
-    #endif
-    ESP.restart();
-  }else{
-    if(httpCode == HTTP_CODE_OK) {
-      jsonString = http.getString();
-      #ifdef DEBUG
-        Serial.println(jsonString);
-      #endif
-      object = jsonBuffer.parseObject(jsonString);
-      jsonString = "";
-
-      if(!object.success()){
-        #ifdef DEBUG
-          Serial.println(F("Something went wrong while parsing the JSON-Response!"));
-        #endif
-        ESP.restart();
-      }
-    }else{
-      #ifdef DEBUG
-        Serial.println(F("Something went wrong while sending the POST request"));
-        Serial.print(F("Status Code: "));
-        Serial.println(httpCode);
-      #endif  
-      ESP.restart();
-    }
-  }
-  http.end();
 
   //TODO: Migrate the add list to another array
   JsonArray& add    = object["add"];
@@ -125,107 +131,72 @@ void updateCardsAndTime(unsigned long* resetTime){
     cards.as<JsonArray>().add(content.c_str());
   }
   
-  http.begin(host, port, uri + apiKey, fingerprint);
-  object.printTo(jsonString);
-  httpCode = http.POST(jsonString);
+  jsonPost(&jsonBuffer, object);
 
-  jsonBuffer.clear();
+  //Do shit
+  cards  = object["list"];
 
-  //Receive response
-  if(httpCode < 0){
-    #ifdef DEBUG
-      Serial.println(F("Something went wrong while sending the POST request"));
-    #endif
-    ESP.restart();
-  }else{
-    if(httpCode == HTTP_CODE_OK) {
-      jsonString = http.getString();
-      #ifdef DEBUG
-        Serial.println(jsonString);
-      #endif
-      object = jsonBuffer.parseObject(jsonString);
-      jsonString = "";
-
-      if(!object.success()){
-        #ifdef DEBUG
-          Serial.println(F("Something went wrong while parsing the JSON-Response!"));
-        #endif
-        ESP.restart();
-      }
-    }else{
-      #ifdef DEBUG
-        Serial.println(F("Something went wrong while sending the POST request"));
-        Serial.print(F("Status Code: "));
-        Serial.println(httpCode);
-      #endif  
-      ESP.restart();
-    }
-  }
-  http.end();
-
-  writeCardValues(object);
-  jsonBuffer.clear();
-
-  object = jsonBuffer.createObject();
-  //Download the specified files from the server
-  object["c"] = "downL";
-  cards = object.as<JsonObject>().createNestedArray("list");
-
+  //tie the two lists together
+  String* temp = new String[length+cards.size()];
   for(size_t i = 0; i < length; i++){
-    cards.as<JsonArray>().add(*(addFiles + i));
+    *(temp+i) = *(addFiles+i);
   }
-
-  http.begin(host, port, uri + apiKey, fingerprint);
-  object.printTo(jsonString);
-  httpCode = http.POST(jsonString);
-
+  delete(addFiles);
+  addFiles = temp;
+  for(size_t i = length; i < length+cards.size(); i++){
+    *(temp+i) = cards.as<JsonArray>().get<String>(i-length);
+  }
+  length+=cards.size();
   jsonBuffer.clear();
 
-  //Receive response
-  if(httpCode < 0){
-    #ifdef DEBUG
-      Serial.println(F("Something went wrong while sending the POST request"));
-    #endif
-    ESP.restart();
-  }else{
-    if(httpCode == HTTP_CODE_OK) {
-      jsonString = http.getString();
-      #ifdef DEBUG
-        Serial.println(jsonString);
-      #endif
-      object = jsonBuffer.parseObject(jsonString);
-      jsonString = "";
-
-      if(!object.success()){
-        #ifdef DEBUG
-          Serial.println(F("Something went wrong while parsing the JSON-Response!"));
-        #endif
-        ESP.restart();
-      }
-    }else{
-      #ifdef DEBUG
-        Serial.println(F("Something went wrong while sending the POST request"));
-        Serial.print(F("Status Code: "));
-        Serial.println(httpCode);
-      #endif  
-      ESP.restart();
-    }
-  }
-  http.end();  
-
-  writeCardValues(object);
+  //Download and write the specified cards
+  downloadCards(&jsonBuffer, addFiles, length);
+  
+  delete(addFiles);
   jsonBuffer.clear();
 }
 
-void writeCardValues(JsonVariant variant){
-  JsonVariant cards = variant["list"];
-  for(auto elem : cards.as<JsonObject>()){
-    //I'm lazy ;P
-    File f = SPIFFS.open("/cards/" + String(elem.key), "w");
+void writeCardValues(card* cards, unsigned int length){
+  for(unsigned int i = 0; i < length; i++){
+    card temp = *(cards+i);
+    File f = SPIFFS.open("/cards/" + temp.uid, "w");
     //TODO: Check this fucking shit!
-    f.print(elem.value.as<String>());
+    f.print(temp.content);
     f.flush();
     f.close();
   }
+  delete(cards);
 }
 
+//TODO: Replace int with short
+void downloadCards(String* uids, unsigned int uidLength){
+  StaticJsonBuffer<maxCheckSize> jsonBuffer;
+  downloadCards(&jsonBuffer, uids, uidLength);
+}
+
+//TODO: Rework this crap!
+void downloadCards(StaticJsonBuffer<maxCheckSize>* jsonBuffer, String* uids, unsigned int uidLength){
+  JsonVariant object = jsonBuffer->createObject();
+  //Download the specified files from the server
+  object["c"] = "downL";
+  JsonArray&  uid    = object.as<JsonObject>().createNestedArray("uids");
+  
+  for(unsigned int i = 0; i < uidLength; i++){
+    uid.add(*(uids+i));
+  }
+
+  jsonPost(jsonBuffer, object);
+  JsonObject& response = object["list"];
+  size_t size = response.size();
+  card* cards = new card[size];
+  unsigned int i = 0;
+  for(auto elem : response){
+     card uid;
+     uid.uid = elem.key;
+     uid.content = elem.value.as<String>();
+     *(cards+i) = uid;
+     i++;
+  }
+  writeCardValues(cards, i);
+  jsonBuffer->clear();
+}
