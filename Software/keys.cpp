@@ -23,3 +23,10 @@ void updateKeys(){
   }
 }
 
+bool checkKeyAllowed(byte* allowedKeys, byte keyNumber){
+  byte rest = keyNumber%8;
+  byte regi = keyNumber/8;
+
+  return (*(allowedKeys+regi) & (1 << rest));
+}
+

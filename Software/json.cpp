@@ -1,14 +1,20 @@
 #include <FS.h>
 #include <ESP8266HTTPClient.h>
 
+#include "keys.hpp"
+
 //WiFi-stuff
 HTTPClient http;
 
 #include "json.hpp"
 
+specialKey* specialKeys = NULL;
+byte numSpecialKeys     = 0;
+
+
 //Push a json request to the server and handle the response!
-void jsonPost(StaticJsonBuffer<maxCheckSize>* jsonBuffer, JsonVariant response){
-  
+bool jsonPost(StaticJsonBuffer<BufferSize>* jsonBuffer, JsonVariant response){
+
   http.begin(host, port, uri + apiKey, fingerprint);
   String jsonString;
   response.printTo(jsonString);
@@ -25,7 +31,7 @@ void jsonPost(StaticJsonBuffer<maxCheckSize>* jsonBuffer, JsonVariant response){
     #ifdef DEBUG
       Serial.println(F("Something went wrong while sending the POST request"));
     #endif
-    ESP.restart();
+    return false;
   }else{
     if(httpCode == HTTP_CODE_OK) {
       jsonString = http.getString();
@@ -39,7 +45,7 @@ void jsonPost(StaticJsonBuffer<maxCheckSize>* jsonBuffer, JsonVariant response){
         #ifdef DEBUG
           Serial.println(F("Something went wrong while parsing the JSON-Response!"));
         #endif
-        ESP.restart();
+        return false;
       }
     }else{
       #ifdef DEBUG
@@ -47,17 +53,60 @@ void jsonPost(StaticJsonBuffer<maxCheckSize>* jsonBuffer, JsonVariant response){
         Serial.print(F("Status Code: "));
         Serial.println(httpCode);
       #endif  
-      ESP.restart();
+      return false;
     }
   }
   http.end();
+  return true;
 }
 
 //Check time and time and update them accordingly
 void updateCardsAndTime(unsigned long* resetTime){
   
-  StaticJsonBuffer<maxCheckSize> jsonBuffer;
+  StaticJsonBuffer<BufferSize> jsonBuffer;
+
+  //Update the keys
+  updateSpecialKeys(&jsonBuffer);
+  jsonBuffer.clear();
   
+  File f = SPIFFS.open("/keys", "r");
+  String fileContent = f.readString();
+  byte numberOfLines = 0;
+  size_t lastIndex     = 0;
+  while(true){
+    int temp = fileContent.indexOf('\n', lastIndex);
+    numberOfLines++;
+    if(temp != -1){
+      lastIndex = temp;  
+    }else{
+      break;
+    }
+  }
+
+  if(specialKeys != NULL)
+    delete[] specialKeys;
+
+  //Fill the special key array
+
+  specialKeys = new specialKey[numberOfLines];
+  numSpecialKeys = numberOfLines;
+  for(byte i = 0; i < numberOfLines; i++){
+    int index = fileContent.indexOf('\n');
+    String temp = "";
+    if(index != -1){
+      temp = fileContent.substring(0, index);
+      fileContent  = fileContent.substring(index+1);
+    }else{
+      temp = fileContent;
+    }
+    index = temp.indexOf(":");
+    //TODO:Cleanup this crap! I hope this won't break!
+    specialKey fix;
+    fix.keyNumber = (byte)temp.substring(index+1).toInt();
+    fix.maxTime   = (int)temp.substring(0, index).toInt();
+    *(specialKeys+i) = fix;
+  }
+    
   //Create the sync-object
   //Maybe-TODO: make the sending flexible(eg. because of more cards). Not really needed
   JsonVariant object = jsonBuffer.createObject();
@@ -77,7 +126,10 @@ void updateCardsAndTime(unsigned long* resetTime){
 
   http.addHeader(F("Content-Type:"), F("application/json"), false, true); 
 
-  jsonPost(&jsonBuffer, object);
+  bool response = jsonPost(&jsonBuffer, object);
+  if(!response)
+    ESP.restart();
+
 
   #ifdef DEBUG
     Serial.println(F("Sent the list of currently stored cards to the server"));
@@ -131,7 +183,9 @@ void updateCardsAndTime(unsigned long* resetTime){
     cards.as<JsonArray>().add(content.c_str());
   }
   
-  jsonPost(&jsonBuffer, object);
+  response = jsonPost(&jsonBuffer, object);
+  if(!response)
+    ESP.restart();
 
   //Do shit
   cards  = object["list"];
@@ -141,7 +195,7 @@ void updateCardsAndTime(unsigned long* resetTime){
   for(size_t i = 0; i < length; i++){
     *(temp+i) = *(addFiles+i);
   }
-  delete(addFiles);
+  delete[] addFiles;
   addFiles = temp;
   for(size_t i = length; i < length+cards.size(); i++){
     *(temp+i) = cards.as<JsonArray>().get<String>(i-length);
@@ -150,9 +204,11 @@ void updateCardsAndTime(unsigned long* resetTime){
   jsonBuffer.clear();
 
   //Download and write the specified cards
-  downloadCards(&jsonBuffer, addFiles, length);
+  response = downloadCards(&jsonBuffer, addFiles, length);
+  if(!response)
+    ESP.restart();
   
-  delete(addFiles);
+  delete[] addFiles;
   jsonBuffer.clear();
 }
 
@@ -165,17 +221,17 @@ void writeCardValues(card* cards, unsigned int length){
     f.flush();
     f.close();
   }
-  delete(cards);
+  delete[] cards;
 }
 
 //TODO: Replace int with short
-void downloadCards(String* uids, unsigned int uidLength){
-  StaticJsonBuffer<maxCheckSize> jsonBuffer;
-  downloadCards(&jsonBuffer, uids, uidLength);
+bool downloadCards(String* uids, unsigned int uidLength, bool* known /* = known */){
+  StaticJsonBuffer<BufferSize> jsonBuffer;
+  return downloadCards(&jsonBuffer, uids, uidLength);
 }
 
 //TODO: Rework this crap!
-void downloadCards(StaticJsonBuffer<maxCheckSize>* jsonBuffer, String* uids, unsigned int uidLength){
+bool downloadCards(StaticJsonBuffer<BufferSize>* jsonBuffer, String* uids, unsigned int uidLength, bool* known /* = known */){
   JsonVariant object = jsonBuffer->createObject();
   //Download the specified files from the server
   object["c"] = "downL";
@@ -185,7 +241,7 @@ void downloadCards(StaticJsonBuffer<maxCheckSize>* jsonBuffer, String* uids, uns
     uid.add(*(uids+i));
   }
 
-  jsonPost(jsonBuffer, object);
+  bool responseVal = jsonPost(jsonBuffer, object);
   JsonObject& response = object["list"];
   size_t size = response.size();
   card* cards = new card[size];
@@ -197,6 +253,63 @@ void downloadCards(StaticJsonBuffer<maxCheckSize>* jsonBuffer, String* uids, uns
      *(cards+i) = uid;
      i++;
   }
+  
   writeCardValues(cards, i);
   jsonBuffer->clear();
+
+  if(known != NULL){
+    if(size == 0){
+      *known = false;
+    }else{
+      *known = true;
+    }
+  }
+
+  return responseVal;
+}
+
+bool updateSpecialKeys(){
+  StaticJsonBuffer<BufferSize> jsonBuffer;
+  return updateSpecialKeys(&jsonBuffer);
+}
+
+bool updateSpecialKeys(StaticJsonBuffer<BufferSize>* jsonBuffer){
+  JsonVariant object = jsonBuffer->createObject();
+  //downK ^= download Keys
+  object["c"] = "downK";
+  bool response = jsonPost(jsonBuffer, object);  
+  if(!response){
+    return false;
+  }
+
+  JsonArray& list = object["list"];
+  String jsonContent = "";
+
+  for(size_t i = 0; i < list.size(); i++){
+    jsonContent += list.get<String>(i);
+    if(i < list.size()-2)
+      jsonContent += '\n';
+  }
+
+  if(!SPIFFS.exists("/keys")){
+    #ifdef DEBUG
+      Serial.println(F("Keys file wasn't found! Just writing the response"));
+    #endif
+    File f = SPIFFS.open("/keys", "w");
+    f.print(jsonContent);
+    f.flush();
+    f.close();
+  }
+  File f = SPIFFS.open("/keys", "r");
+  String fileContent = f.readString();
+  f.close();
+
+  //Not perfect, but well, if the keys are updated two times per month (unrealistic, won't be so often), but still: about 8192 years(!) possible with the same Flash chip, so it shouldn't be a problem
+  if(!jsonContent.equals(fileContent)){
+    File f = SPIFFS.open("/keys", "w");
+    f.print(jsonContent);
+    f.flush();
+    f.close();
+  }
+  return response;
 }

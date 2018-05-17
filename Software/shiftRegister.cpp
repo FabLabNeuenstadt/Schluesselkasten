@@ -54,3 +54,28 @@ void setGreenLed(bool state){
   }  
   shiftData();
 }
+
+void blinkBeep(byte blink, byte beep, unsigned short duration /* = BLINK_DELAY */){
+  while(blink || beep){
+    if(blink)
+      setRedLed(true);
+    
+    if(beep)
+      setBuzzer(true);
+    
+    delay(duration);
+    if(blink){
+      setRedLed(false);
+      blink--;
+    }
+    if(beep){
+      setBuzzer(false);
+      beep--;
+    }
+    delay(duration);
+  }
+
+  //Just in case
+  setRedLed(false);
+  setBuzzer(false);
+}

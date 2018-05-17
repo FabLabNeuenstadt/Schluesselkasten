@@ -3,7 +3,6 @@
 
 #include <ArduinoJson.h>
 
-//Dirty fix
 #include "config.hpp"
 
 typedef struct{
@@ -11,9 +10,11 @@ typedef struct{
   String content;
 } card;
 
-void jsonPost(StaticJsonBuffer<maxCheckSize>* jsonBuffer, JsonVariant* response);
-void downloadCards(String* uids, unsigned int uidLength);
-void downloadCards(StaticJsonBuffer<maxCheckSize>* jsonBuffer, String* uids, unsigned int uidLength);
+bool jsonPost(StaticJsonBuffer<BufferSize>* jsonBuffer, JsonVariant* response);
+bool downloadCards(String* uids, unsigned int uidLength, bool* known = NULL);
+bool downloadCards(StaticJsonBuffer<BufferSize>* jsonBuffer, String* uids, unsigned int uidLength, bool* known = NULL);
+bool updateSpecialKeys(StaticJsonBuffer<BufferSize>* jsonBuffer);
+bool updateSpecialKeys();
 void updateCardsAndTime(unsigned long* timeReset);
 void writeCardValues(card* cards, unsigned int length);
 
