@@ -92,7 +92,7 @@ void setup(){
 void loop() { 
   
   //Is it time for an update?
-  if((resetTime - millis()) == 0){
+  if((resetTime - millis()) >= 0){
     updateCardsAndTime(&resetTime);  
   }
   
@@ -238,8 +238,6 @@ void loop() {
   memcpy(allowedKeys, fileContent.substring(22, 30).c_str(), 8);
   //Byte 30 would be a '\0'. Maybe i should remove it from the file?
 
-  //So, now it's finally time...
-
   if(mfrc.PCD_Authenticate(mfrc.PICC_CMD_MF_AUTH_KEY_B, 1, &key, &mfrc.uid) != mfrc.STATUS_OK){
     
     #ifdef DEBUG
@@ -288,9 +286,8 @@ void loop() {
   unsigned long opened = millis();
   bool overtimeNotified = false;
   byte oldKeys[NUM_KEYS];
-  memcpy(oldKeys, keys, 9*sizeof(byte));
+  memcpy(oldKeys, keys, NUM_KEYS);
 
-  //In another thing: you're ugly
   specialKey* removedSpecialKeys = new specialKey[numSpecialKeys];
   memcpy(removedSpecialKeys, specialKeys, numSpecialKeys*sizeof(specialKey));
   
@@ -307,21 +304,28 @@ void loop() {
     //Check what keys are plugged in
     updateKeys();
     
-    if(oldKeys != keys){
-      //Not so dynamic, but that should work
-      //Ähm, dafuq? Ein einfaches Array hätte auch gerreicht: TODO: fixen
+
+    boolean arraysEqual = true;
+    for (int i = 0; i < NUM_KEYS; i++) {
+	if (oldKeys[i] != keys[i]) {
+            arraysEqual = false;
+            break;
+        }
+    }
+
+    if(!arraysEqual){
       byte numAdded = 0;
-      byte added[9];
       byte numRemoved = 0;
-      byte removed[9];
+      byte added[NUM_KEYS];
+      byte removed[NUM_KEYS];
       
-      for(byte i = 0; i < 9; i++){
-        if(*(oldKeys+i) == 0 && *(keys+i) != 0){
+      for(byte i = 0; i < NUM_KEYS; i++){
+        if(oldKeys[i] == 0 && keys[i] != 0){
           numAdded++;
-          added[i] = *(keys+i);
-        }else if(*(keys+i) == 0 && *(oldKeys+i) != 0){
+          added[i] = keys[i];
+        }else if(keys[i] == 0 && oldKeys[i] != 0){
           numRemoved++;
-          removed[i] = *(oldKeys+i); 
+          removed[i] = oldKeys[i]; 
         }
       }
 
@@ -339,7 +343,7 @@ void loop() {
       //TODO: Setup timer for special cards
     }
 
-    memcpy(oldKeys, keys, 9*sizeof(byte));
+    memcpy(oldKeys, keys, NUM_KEYS);
   }
 
   delete[] removedSpecialKeys;
