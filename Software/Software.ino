@@ -136,8 +136,9 @@ void loop() {
     }
   }
 
-  byte uid[mfrc.uid.size];
-  memcpy((void*)&uid, (void*)&mfrc.uid.uidByte, mfrc.uid.size);
+  //Upper-Bound for UID-Lengths
+  byte uid[10];
+  memcpy(uid, mfrc.uid.uidByte, mfrc.uid.size);
 
   String uidString = "";
   for(byte i = 0; i < mfrc.uid.size; i++){
@@ -208,7 +209,7 @@ void loop() {
     ESP.restart();
   }
 
-  if(f.size() != 31){
+  if(f.size() != FILE_LENGTH){
     #ifdef DEBUG
       Serial.print(F("Something is wrong about this file, it has a length of: "));
       Serial.println(f.size(), DEC);
@@ -225,17 +226,17 @@ void loop() {
   }
   
   char* temp;
-  f.readBytes(temp, 31);
+  f.readBytes(temp, FILE_LENGTH);
 
   String fileContent(temp);
   delete(temp); 
   
-  char storedData[16];
-  byte allowedKeys[8];
+  char storedData[BLOCK_LENGTH];
+  byte allowedKeys[NUM_KEYS];
   MFRC522::MIFARE_Key key;
-  memcpy(key.keyByte, fileContent.c_str(), 6);
-  memcpy(storedData, fileContent.substring(6, 22).c_str(), 16);
-  memcpy(allowedKeys, fileContent.substring(22, 30).c_str(), 8);
+  memcpy(key.keyByte, fileContent.c_str(), MFRC522::MF_KEY_SIZE);
+  memcpy(storedData, fileContent.substring(MFRC522::MF_KEY_SIZE).c_str(), BLOCK_LENGTH);
+  memcpy(allowedKeys, fileContent.substring(MFRC522::MF_KEY_SIZE+BLOCK_LENGTH).c_str(), NUM_KEYS);
   //Byte 30 would be a '\0'. Maybe i should remove it from the file?
 
   if(mfrc.PCD_Authenticate(mfrc.PICC_CMD_MF_AUTH_KEY_B, 1, &key, &mfrc.uid) != mfrc.STATUS_OK){
@@ -267,7 +268,7 @@ void loop() {
   }
 
   //So, there's is something wrong with the data from the card...
-  if(memcmp(storedData, blockData, 16) != 0){
+  if(memcmp(storedData, blockData, BLOCK_LENGTH) != 0){
     #ifdef DEBUG
       Serial.println(F("The read information does not match the stored information. Sending a deauth!"));
     #endif
@@ -330,6 +331,9 @@ void loop() {
       }
 
       //TODO: Deactivate the timers for replugged keys
+      for(byte i = 0; i < numAdded; i++) {
+
+      }
 
       for(byte i = 0; i < numRemoved; i++){
         if(!checkKeyAllowed(allowedKeys, removed[i])){

@@ -1,9 +1,13 @@
 #ifndef KEYS_HPP
 #define KEYS_HPP
 
+#include <Arduino.h>
+#include <MFRC522.h>
+
 #define NUM_KEYS 9
 
-#include <Arduino.h>
+#define BLOCK_LENGTH 16 
+#define FILE_LENGTH NUM_KEYS + BLOCK_LENGTH + MFRC522::MF_KEY_SIZE
 
 typedef struct{
   //TODO: Check if i can make this const!
