@@ -6,10 +6,17 @@ const char* ssid;
 const char* password;
 
 //Command&Database-Configuration
+//Fingerprint of Server-Certificate
 const char* fingerprint;
 const char* host;
 const uint16_t port;
 const char* uri;
 const char* apiKey;
+
+//OTA-Update(Unused when OTA is not included)
+#ifdef __ARDUINO_OTA_H
+const char* otaName;
+const char* password;
+#endif
 
 #endif
