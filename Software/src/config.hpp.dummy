@@ -1,0 +1,15 @@
+#ifndef CONFIG_HPP
+#define CONFIG_HPP
+
+//WiFi-Configuration
+const char* ssid;
+const char* password;
+
+//Command&Database-Configuration
+const char* fingerprint;
+const char* host;
+const uint16_t port;
+const char* uri;
+const char* apiKey;
+
+#endif
