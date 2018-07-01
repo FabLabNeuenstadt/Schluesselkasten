@@ -1,0 +1,17 @@
+#include "config.hpp"
+
+const long baudrate = 115200;
+
+const char* ssid = "";
+const char* password = "";
+
+const char* fingerprint = "";
+const char* host = "";
+const uint16_t port = 1234;
+const char* uri = "";
+const char* apiKey = "";
+
+#ifdef __ARDUINO_OTA_H
+  extern const char* otaName =  "";
+  extern const char* otaPassword = "";
+#endif
