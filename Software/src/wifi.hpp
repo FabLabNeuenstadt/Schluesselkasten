@@ -1,7 +1,8 @@
 #ifndef WIFI_HPP
 #define WIFI_HPP
+#include "error.hpp"
 
-bool connectWiFi();
-bool connectedWiFi();
+errorCode connectWiFi();
+errorCode connectedWiFi();
 
 #endif

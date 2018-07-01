@@ -2,23 +2,24 @@
 #include "wifi.hpp"
 #include "config.hpp"
 #include "debug.hpp"
+#include "error.hpp"
 
-bool connectWiFi() {
+errorCode connectWiFi() {
   WiFi.mode(WIFI_STA);
   WiFi.begin(ssid, password);
   return connectedWiFi();
 }
 
-bool connectedWiFi() {
+errorCode connectedWiFi() {
   for (int i = 0; i < 80; i++) {
     if (WiFi.status() == WL_CONNECTED) {
       LOG("Connected to WiFi");
-      return true;
+      return Ok;
     }
 
     delay(50);
   }
 
   LOG("Connection to WiFi failed")
-  return false;
+  return WiFi_Failed;
 }
