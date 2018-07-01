@@ -21,5 +21,5 @@ errorCode connectedWiFi() {
   }
 
   LOG("Connection to WiFi failed")
-  return WiFi_Failed;
+  return WiFiFailed;
 }
